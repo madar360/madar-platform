@@ -5808,7 +5808,10 @@ function populateSupervisorFilters(){
 
   document.getElementById('supNameList').innerHTML = state.supervisorsMaster.map(s=>`<option value="${esc(s.name)}">`).join('');
 }
-function applySupFilters(){
+function applySupFilters(keepPage){
+  // keepPage === true -> refreshing after a save/delete/background refresh: stay on the
+  // page she is on. Any other call (filter/search change; listeners pass an Event object)
+  // goes back to page 1 because the result set itself changed.
   const q = document.getElementById('supSearchInput').value.trim().toLowerCase();
   const sector = document.getElementById('supFilterSector').value;
   const jobCat = document.getElementById('supFilterJobCat').value;
@@ -5830,7 +5833,7 @@ function applySupFilters(){
   });
   const supNameDirSign = state.supNameSortDir==='desc' ? -1 : 1;
   state.supFiltered.sort((a,b)=>supNameDirSign * a.name.localeCompare(b.name,'ar'));
-  state.supPage = 1;
+  if(keepPage!==true) state.supPage = 1;
   renderSupervisorTable();
 }
 function renderSupervisorTable(){
@@ -5984,7 +5987,7 @@ async function saveSupervisor(){
   await persistSupervisors(record.id);
   populateSupervisorFilters();
   populateFilters();
-  applySupFilters();
+  applySupFilters(true);
   closeSupervisorModal();
   logActivity(state.supEditingId ? 'تعديل مشرف/ة' : 'إضافة مشرف/ة', name);
   showToast(state.supEditingId ? 'تم تحديث بيانات المشرف/ة' : 'تمت إضافة المشرف/ة بنجاح');
@@ -6005,7 +6008,7 @@ async function confirmDeleteSup(){
   await persistSupervisors(deletedId);
   populateSupervisorFilters();
   populateFilters();
-  applySupFilters();
+  applySupFilters(true);
   closeDeleteSupModal();
   logActivity('حذف مشرف/ة', deleted ? deleted.name : String(state.supDeleteId));
   showToast('تم حذف المشرف/ة من القاعدة');
@@ -7449,7 +7452,7 @@ function switchView(view){
   if(view==='directory') renderProactiveInsights();
   if(view==='matrix') renderMatrix();
   if(view==='dash') renderDashboard();
-  if(view==='supervisors'){ populateSupervisorFilters(); applySupFilters(); }
+  if(view==='supervisors'){ populateSupervisorFilters(); applySupFilters(true); }
   if(view==='forms') backToFolders();
   if(view==='programs') renderProgramsView();
   if(view==='stats') renderStatsView();
@@ -8112,7 +8115,7 @@ async function refreshDataQuietly(manual){
     populateFilters();
     populateSupervisorFilters();
     applyFilters(false);
-    applySupFilters();
+    applySupFilters(true);
     if(document.getElementById('view-dash').style.display!=='none') renderDashboard();
     // Keep the statistics screen (including the quick calculator's totals and
     // per-option counts) talking to the platform's live data too — otherwise
