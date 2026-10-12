@@ -969,6 +969,10 @@
         <option value="">الإعارة: الكل</option>
         <option value="yes">معار/ة حاليًا</option>
       </select>
+      <select id="supFilterTeachingFw">
+        <option value="">تحسين إطار التدريس: الكل</option>
+        <option value="yes">ضمن تحسين إطار التدريس</option>
+      </select>
       <button class="btn btn-outline btn-sm" id="supNameSortToggleBtn" title="ترتيب الأسماء أبجديًا" style="white-space:nowrap;">🔤 أ ← ي</button>
       <div style="flex:1"></div>
       <button class="btn btn-outline admin-only" id="manageSpecializationsBtn">⚙️ إدارة التخصصات</button>
@@ -4687,6 +4691,10 @@ function openSupervisorProfile(supId){
       <input type="checkbox" id="pf_onSecondment" ${sv.on_secondment ? 'checked' : ''}>
       🔁 إعارة
     </label>
+    <label class="admin-only" style="display:flex;align-items:center;gap:8px;font-size:13px;margin:14px 0;cursor:pointer;">
+      <input type="checkbox" id="pf_teachingFw" ${sv.in_teaching_framework ? 'checked' : ''}>
+      📘 تحسين إطار التدريس
+    </label>
 
     <div class="profile-section-h">ملاحظات</div>
     <textarea class="pf-textarea" id="pf_notes">${esc(sv.notes||'')}</textarea>`;
@@ -4983,6 +4991,7 @@ document.getElementById('saveSupervisorProfile').addEventListener('click', async
   sv.notes = document.getElementById('pf_notes').value;
   sv.in_central_training = document.getElementById('pf_inTraining').checked;
   sv.on_secondment = document.getElementById('pf_onSecondment').checked;
+  sv.in_teaching_framework = document.getElementById('pf_teachingFw').checked;
   await persistSupervisors(sv.id);
   logActivity('تحديث ملاحظات بورتفوليو', sv.name);
   showToast('تم حفظ الملاحظات');
@@ -5819,6 +5828,7 @@ function applySupFilters(keepPage){
   const specialization = document.getElementById('supFilterSpecialization').value;
   const training = document.getElementById('supFilterTraining').value;
   const secondment = document.getElementById('supFilterSecondment').value;
+  const teachingFw = document.getElementById('supFilterTeachingFw').value;
   state.supFiltered = state.supervisorsMaster.filter(s=>{
     if(sector && s.sector!==sector) return false;
     if(jobCat && s.job_category!==jobCat) return false;
@@ -5826,6 +5836,7 @@ function applySupFilters(keepPage){
     if(specialization && s.specialization_id!==specialization) return false;
     if(training==='yes' && !s.in_central_training) return false;
     if(secondment==='yes' && !s.on_secondment) return false;
+    if(teachingFw==='yes' && !s.in_teaching_framework) return false;
     if(q){
       if(!fuzzyFieldMatch([s.name, s.civil_id], q)) return false;
     }
@@ -5862,7 +5873,7 @@ function renderSupervisorTable(){
     const countTitle = allNames;
     return `<tr>
       <td class="sel-col spec-sel-col"><input type="checkbox" class="rowchk spec-assign-chk" data-id="${esc(s.id)}" ${state.specAssignSelected.has(s.id)?'checked':''}></td>
-      <td><div class="sname" style="${s.job_category==='رئيس الفريق التنفيذي' ? 'color:#8A5A00;font-weight:900;' : ''}">${esc(s.name)} ${s.is_executive_team ? '<span class="badge" style="background:#F3EFE3;color:#96874f;font-size:10px;">الفريق التنفيذي</span>' : ''} ${s.job_category==='رئيس الفريق التنفيذي' ? '<span class="badge" style="background:#FCEFCB;color:#8A5A00;font-size:10px;">رئيس الفريق التنفيذي</span>' : ''} ${s.in_central_training ? '<span class="badge" style="background:#E4EAF4;color:#2E4E85;font-size:10px;">🎓 مدرب مركزي</span>' : ''} ${s.on_secondment ? '<span class="badge" style="background:#F7E7E3;color:#AE4739;font-size:10px;">🔁 إعارة</span>' : ''}</div><div class="smeta">${esc(s.job_title||'')}</div></td>
+      <td><div class="sname" style="${s.job_category==='رئيس الفريق التنفيذي' ? 'color:#8A5A00;font-weight:900;' : ''}">${esc(s.name)} ${s.is_executive_team ? '<span class="badge" style="background:#F3EFE3;color:#96874f;font-size:10px;">الفريق التنفيذي</span>' : ''} ${s.job_category==='رئيس الفريق التنفيذي' ? '<span class="badge" style="background:#FCEFCB;color:#8A5A00;font-size:10px;">رئيس الفريق التنفيذي</span>' : ''} ${s.in_central_training ? '<span class="badge" style="background:#E4EAF4;color:#2E4E85;font-size:10px;">🎓 مدرب مركزي</span>' : ''} ${s.on_secondment ? '<span class="badge" style="background:#F7E7E3;color:#AE4739;font-size:10px;">🔁 إعارة</span>' : ''} ${s.in_teaching_framework ? '<span class="badge" style="background:#E3F3EC;color:#1E7A55;font-size:10px;">📘 تحسين إطار التدريس</span>' : ''}</div><div class="smeta">${esc(s.job_title||'')}</div></td>
       <td><span class="badge ${supTypeBadge(s.category)}">${esc(s.category)||'—'}</span></td>
       <td>${esc(specializationLabel(s.specialization_id))||'<span class="missing">—</span>'}</td>
       <td>${esc(s.job_category)||'—'}</td>
@@ -5960,7 +5971,7 @@ async function saveSupervisor(){
   }
   const existing = state.supEditingId ? state.supervisorsMaster.find(x=>x.id===state.supEditingId) : null;
   const record = {
-    ...existing, // preserve fields the form doesn't touch: executive_schools, support1/2/3_schools, in_central_training, etc.
+    ...existing, // preserve fields the form doesn't touch: executive_schools, support1/2/3_schools, in_central_training, in_teaching_framework, etc.
     id: state.supEditingId || ('SUP-'+Date.now()),
     name,
     role: document.getElementById('sf_role').value,
@@ -6030,6 +6041,7 @@ document.getElementById('supFilterCategory').addEventListener('change', applySup
 document.getElementById('supFilterSpecialization').addEventListener('change', applySupFilters);
 document.getElementById('supFilterTraining').addEventListener('change', applySupFilters);
 document.getElementById('supFilterSecondment').addEventListener('change', applySupFilters);
+document.getElementById('supFilterTeachingFw').addEventListener('change', applySupFilters);
 document.getElementById('supNameSortToggleBtn').addEventListener('click', ()=>{
   state.supNameSortDir = state.supNameSortDir==='asc' ? 'desc' : 'asc';
   document.getElementById('supNameSortToggleBtn').textContent = state.supNameSortDir==='asc' ? '🔤 أ ← ي' : '🔤 ي ← أ';
