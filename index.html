@@ -117,6 +117,15 @@
     border-radius:var(--radius);padding:14px;box-shadow:var(--shadow-sm);
     margin-bottom:18px;
   }
+  .sp-wrap{position:relative;}
+  .sp-wrap #supSpecialBtn.active{background:var(--brand-teal);border-color:var(--brand-teal);color:#fff;}
+  .sp-badge{display:inline-block;min-width:18px;padding:0 6px;border-radius:9px;background:#fff;color:var(--brand-teal);font-size:11px;font-weight:800;line-height:18px;text-align:center;}
+  .sp-panel{position:absolute;top:calc(100% + 6px);right:0;z-index:30;min-width:240px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);padding:8px;}
+  .sp-item{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:13.5px;}
+  .sp-item:hover{background:rgba(13,169,166,.08);}
+  .sp-item span{flex:1;}
+  .sp-item b{font-size:11.5px;color:var(--text-muted,#6b7a85);background:rgba(0,0,0,.05);border-radius:9px;padding:1px 8px;}
+  .sp-clear{width:100%;margin-top:4px;padding:8px;border:0;border-top:1px solid var(--border);background:none;color:var(--brand-teal);font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;}
   .search-wrap{position:relative;flex:1 1 240px;min-width:200px;}
   .search-wrap input{width:100%;}
   input,select,textarea{
@@ -961,18 +970,15 @@
       <select id="supFilterJobCat"></select>
       <select id="supFilterCategory"></select>
       <select id="supFilterSpecialization"></select>
-      <select id="supFilterTraining">
-        <option value="">التدريب المركزي: الكل</option>
-        <option value="yes">مدرب مركزي</option>
-      </select>
-      <select id="supFilterSecondment">
-        <option value="">الإعارة: الكل</option>
-        <option value="yes">معار/ة حاليًا</option>
-      </select>
-      <select id="supFilterTeachingFw">
-        <option value="">تحسين إطار التدريس: الكل</option>
-        <option value="yes">ضمن تحسين إطار التدريس</option>
-      </select>
+      <div class="sp-wrap" id="supSpecialWrap">
+        <button type="button" class="btn btn-outline" id="supSpecialBtn" aria-haspopup="true" aria-expanded="false">⭐ التكليفات الخاصة <span id="supSpecialBadge" class="sp-badge" style="display:none;"></span> <span style="font-size:10px;">▾</span></button>
+        <div class="sp-panel" id="supSpecialPanel" style="display:none;">
+          <label class="sp-item"><input type="checkbox" id="spTraining"><span>🎓 مدرب مركزي</span><b id="spCntTraining">0</b></label>
+          <label class="sp-item"><input type="checkbox" id="spSecondment"><span>🔁 معار/ة حاليًا</span><b id="spCntSecondment">0</b></label>
+          <label class="sp-item"><input type="checkbox" id="spTeachingFw"><span>📘 تحسين إطار التدريس</span><b id="spCntTeachingFw">0</b></label>
+          <button type="button" class="sp-clear" id="spClear">مسح الاختيار</button>
+        </div>
+      </div>
       <button class="btn btn-outline btn-sm" id="supNameSortToggleBtn" title="ترتيب الأسماء أبجديًا" style="white-space:nowrap;">🔤 أ ← ي</button>
       <div style="flex:1"></div>
       <button class="btn btn-outline admin-only" id="manageSpecializationsBtn">⚙️ إدارة التخصصات</button>
@@ -4683,6 +4689,7 @@ function openSupervisorProfile(supId){
     <div id="execSchoolsList" style="max-height:320px;overflow-y:auto;"></div>
     ` : ''}
 
+    <div class="profile-section-h admin-only">⭐ التكليفات الخاصة</div>
     <label class="admin-only" style="display:flex;align-items:center;gap:8px;font-size:13px;margin:14px 0;cursor:pointer;">
       <input type="checkbox" id="pf_inTraining" ${sv.in_central_training ? 'checked' : ''}>
       🎓 مدرب مركزي
@@ -5826,17 +5833,16 @@ function applySupFilters(keepPage){
   const jobCat = document.getElementById('supFilterJobCat').value;
   const cat = document.getElementById('supFilterCategory').value;
   const specialization = document.getElementById('supFilterSpecialization').value;
-  const training = document.getElementById('supFilterTraining').value;
-  const secondment = document.getElementById('supFilterSecondment').value;
-  const teachingFw = document.getElementById('supFilterTeachingFw').value;
+  const spT = document.getElementById('spTraining').checked;
+  const spS = document.getElementById('spSecondment').checked;
+  const spF = document.getElementById('spTeachingFw').checked;
+  const spAny = spT||spS||spF;
   state.supFiltered = state.supervisorsMaster.filter(s=>{
     if(sector && s.sector!==sector) return false;
     if(jobCat && s.job_category!==jobCat) return false;
     if(cat && s.category!==cat) return false;
     if(specialization && s.specialization_id!==specialization) return false;
-    if(training==='yes' && !s.in_central_training) return false;
-    if(secondment==='yes' && !s.on_secondment) return false;
-    if(teachingFw==='yes' && !s.in_teaching_framework) return false;
+    if(spAny && !((spT&&s.in_central_training)||(spS&&s.on_secondment)||(spF&&s.in_teaching_framework))) return false;
     if(q){
       if(!fuzzyFieldMatch([s.name, s.civil_id], q)) return false;
     }
@@ -6039,9 +6045,37 @@ document.getElementById('supFilterSector').addEventListener('change', applySupFi
 document.getElementById('supFilterJobCat').addEventListener('change', applySupFilters);
 document.getElementById('supFilterCategory').addEventListener('change', applySupFilters);
 document.getElementById('supFilterSpecialization').addEventListener('change', applySupFilters);
-document.getElementById('supFilterTraining').addEventListener('change', applySupFilters);
-document.getElementById('supFilterSecondment').addEventListener('change', applySupFilters);
-document.getElementById('supFilterTeachingFw').addEventListener('change', applySupFilters);
+function updateSpecialUI(){
+  const sv = state.supervisorsMaster||[];
+  const set=(id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
+  set('spCntTraining', sv.filter(x=>x.in_central_training).length);
+  set('spCntSecondment', sv.filter(x=>x.on_secondment).length);
+  set('spCntTeachingFw', sv.filter(x=>x.in_teaching_framework).length);
+  const n = ['spTraining','spSecondment','spTeachingFw'].filter(id=>document.getElementById(id).checked).length;
+  const btn=document.getElementById('supSpecialBtn'), bd=document.getElementById('supSpecialBadge');
+  btn.classList.toggle('active', n>0);
+  bd.style.display = n>0 ? 'inline-block' : 'none';
+  bd.textContent = n;
+}
+function closeSpecialPanel(){
+  document.getElementById('supSpecialPanel').style.display='none';
+  document.getElementById('supSpecialBtn').setAttribute('aria-expanded','false');
+}
+document.getElementById('supSpecialBtn').addEventListener('click', (e)=>{
+  e.stopPropagation();
+  const panel=document.getElementById('supSpecialPanel');
+  const open = panel.style.display==='none';
+  if(open) updateSpecialUI();
+  panel.style.display = open ? 'block' : 'none';
+  e.currentTarget.setAttribute('aria-expanded', open?'true':'false');
+});
+document.getElementById('supSpecialPanel').addEventListener('click', e=>e.stopPropagation());
+document.addEventListener('click', closeSpecialPanel);
+['spTraining','spSecondment','spTeachingFw'].forEach(id=>document.getElementById(id).addEventListener('change', ()=>{ updateSpecialUI(); applySupFilters(); }));
+document.getElementById('spClear').addEventListener('click', ()=>{
+  ['spTraining','spSecondment','spTeachingFw'].forEach(id=>document.getElementById(id).checked=false);
+  updateSpecialUI(); applySupFilters();
+});
 document.getElementById('supNameSortToggleBtn').addEventListener('click', ()=>{
   state.supNameSortDir = state.supNameSortDir==='asc' ? 'desc' : 'asc';
   document.getElementById('supNameSortToggleBtn').textContent = state.supNameSortDir==='asc' ? '🔤 أ ← ي' : '🔤 ي ← أ';
