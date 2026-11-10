@@ -2163,9 +2163,9 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script>
 /* ---------------- Cloud Storage (Firebase Firestore) ---------------- */
 const firebaseConfig = {
@@ -2203,8 +2203,9 @@ async function initFirebase(){
   if(!ok){
     // Primary CDN (gstatic) didn't come through in time — try a mirror
     try{
-      await loadScriptTag('https://cdn.jsdelivr.net/npm/firebase@10.7.1/firebase-app-compat.js');
-      await loadScriptTag('https://cdn.jsdelivr.net/npm/firebase@10.7.1/firebase-firestore-compat.js');
+      await loadScriptTag('https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-app-compat.js');
+      await loadScriptTag('https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-firestore-compat.js');
+      await loadScriptTag('https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-auth-compat.js');
       ok = await waitForGlobal('firebase', 6000);
     }catch(e){ ok = false; }
   }
@@ -2805,7 +2806,8 @@ async function loadActivityLog(){
 }
 async function persistActivityLog(){
   try{
-    await storage.set(ACTIVITY_LOG_KEY, JSON.stringify(state.activityLog.slice(-500)), true);
+    // السجل مرتّب من الأحدث للأقدم (unshift) — لذا نحتفظ بأول ٥٠٠ (الأحدث) وليس آخر ٥٠٠
+    await storage.set(ACTIVITY_LOG_KEY, JSON.stringify(state.activityLog.slice(0,500)), true);
   }catch(e){ console.error(e); }
 }
 async function loadActorName(){
