@@ -533,6 +533,13 @@
   .bulk-bar.show{display:flex;}
   .bulk-bar b{font-family:'Tajawal',sans-serif;}
   .flag-dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-inline-end:5px;}
+  .flag-pill.flag-off{background:transparent !important;color:#7b8a83 !important;border:1px dashed #a9b4ae;}
+  .flag-pill.flag-off .flag-dot{background:transparent !important;border:1.5px solid #9aa7a0;box-sizing:border-box;}
+  .urgent-extra{display:inline-block;margin-inline-start:4px;padding:0 6px;border-radius:9px;background:#e9edeb;color:#6b7a73;font-size:11px;font-weight:700;line-height:17px;}
+  .pi-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
+  .pi-chip{border:1px solid var(--border);background:var(--surface);border-radius:999px;padding:6px 14px;font-family:inherit;font-size:12.5px;cursor:pointer;color:var(--text);}
+  .pi-chip.active{background:var(--danger);border-color:var(--danger);color:#fff;}
+  tr.pi-off td{opacity:.72;}
   .flag-pill{
     display:inline-flex;align-items:center;font-size:10.5px;font-weight:700;padding:2px 8px;
     border-radius:99px;margin-bottom:3px;
@@ -1793,13 +1800,18 @@
       <button class="close" id="closePriorityImprovement">&times;</button>
     </div>
     <div class="modal-body">
+      <div class="pi-chips" id="priorityChips">
+        <button type="button" class="pi-chip active" data-pf="all">الكل <b id="piCntAll">0</b></button>
+        <button type="button" class="pi-chip" data-pf="tracked">يتابعها القسم <b id="piCntTracked">0</b></button>
+        <button type="button" class="pi-chip" data-pf="untracked">خارج المتابعة <b id="piCntUntracked">0</b></button>
+      </div>
       <div class="search-wrap" style="position:relative;margin-bottom:10px;">
         <input type="text" id="priorityImprovementSearch" placeholder="ابحثي داخل هذه القائمة…">
       </div>
       <div class="table-scroll" style="max-height:60vh;">
         <table class="levels-table" id="priorityImprovementTable">
           <thead><tr>
-            <th>المدرسة</th><th>المدينة / الحي</th><th>التصنيف</th><th>المديرة/المدير</th><th>المشرف/ة المسند</th><th>نص الإشارة</th>
+            <th>المدرسة</th><th>المدينة / الحي</th><th>التصنيف</th><th>المديرة/المدير</th><th>المشرف/ة المسند</th><th>نص الإشارة</th><th class="admin-only">المتابعة</th>
           </tr></thead>
           <tbody id="priorityImprovementTbody"></tbody>
         </table>
@@ -2869,7 +2881,7 @@ function computeSnapshotStats(){
   const supTotal = state.supervisorsMaster.length;
   const withSchools = map.filter(m=>m.linked && supervisorEntryHasAnySchools(m)).length;
   const coveragePct = supTotal ? Math.round((withSchools/supTotal)*100) : 0;
-  const flagged = state.schools.filter(s=>s.flag).length;
+  const flagged = state.schools.filter(s=>s.flag && !isUrgentUntracked(s)).length;
   return {
     date: new Date().toISOString().slice(0,10),
     total, classCounts, avgDegree,
@@ -3140,8 +3152,7 @@ function renderTable(){
     const levels = getLevels(s.id);
     const levelCount = levels.length;
     const weakCount = levels.filter(l=>l.label==='التهيئة').length;
-    const flagColor = resolveFlagColor(s.flag);
-    const flagHtml = s.flag ? `<div class="flag-pill" style="background:${flagColor}22;color:${flagColor};"><span class="flag-dot" style="background:${flagColor};"></span>${esc(s.flag.label)}</div>` : '';
+    const flagHtml = flagPillHtml(s);
     const ecBadgeHtml = s.stage==='الطفولة المبكرة' ? (s.ec_tracked===false
       ? `<div class="flag-pill" style="background:#F0F1F3;color:#6B7280;"><span class="flag-dot" style="background:#9CA3AF;"></span>غير متابَعة</div>`
       : `<div class="flag-pill" style="background:#E7F5EC;color:#1E7A42;"><span class="flag-dot" style="background:#2FA360;"></span>متابَعة</div>`) : '';
@@ -4351,7 +4362,7 @@ document.getElementById('applyFlagBtn').addEventListener('click', ()=>{
   if(!flag){ showToast('اختر إشارة أو اكتب نصًا مخصصًا', true); return; }
   const n = state.selectedIds.size;
   const ids = [...state.selectedIds];
-  state.schools.forEach(s=>{ if(state.selectedIds.has(s.id)) s.flag = flag; });
+  state.schools.forEach(s=>{ if(state.selectedIds.has(s.id)){ if(!s.flag || s.flag.label!==flag.label) s.urgent_untracked = false; s.flag = flag; } });
   populateFilters();
   applyFilters();
   closeFlagModal();
@@ -4361,7 +4372,7 @@ document.getElementById('applyFlagBtn').addEventListener('click', ()=>{
 document.getElementById('bulkUnflagBtn').addEventListener('click', ()=>{
   const n = state.selectedIds.size;
   const ids = [...state.selectedIds];
-  state.schools.forEach(s=>{ if(state.selectedIds.has(s.id)) s.flag = null; });
+  state.schools.forEach(s=>{ if(state.selectedIds.has(s.id)){ s.flag = null; s.urgent_untracked = false; } });
   populateFilters();
   applyFilters();
   showToast('تمت إزالة الإشارة من المدارس المحددة');
@@ -4556,7 +4567,7 @@ function openSchoolProfile(id){
           <span class="badge ${typeBadgeClass(s.type)}">${esc(s.type)||'—'}</span>
           <span class="badge ${genderBadgeClass(s.gender)}">${esc(s.gender)||'—'}</span>
           <span class="badge ${classBadgeClass(s.classification)}">${esc(s.classification)||'غير مصنف'}</span>
-          ${s.flag?`<span class="flag-pill" style="background:${resolveFlagColor(s.flag)}22;color:${resolveFlagColor(s.flag)};"><span class="flag-dot" style="background:${resolveFlagColor(s.flag)};"></span>${esc(s.flag.label)}</span>`:''}
+          ${s.flag?flagPillHtml(s,'display:inline-flex;'):''}
         </div>
       </div>
       <div class="profile-grid">
@@ -5015,7 +5026,7 @@ function exportExcel(){
     'الرقم الوزاري': s.id, 'اسم المدرسة': s.name, 'المدينة': s.city, 'النوع': s.type, 'الجنس': s.gender,
     'التصنيف': s.classification, 'الدرجة': s.classification_degree, 'المديرة/المدير': s.principal_name,
     'جوال المديرة': s.principal_phone, 'البريد الوزاري': s.email, 'عدد المشرفين': getSchoolSupervisorRoles(s.id).length,
-    'آخر زيارة': s.last_visit_date||'', 'الإشارة': s.flag?s.flag.label:'', 'ملاحظات': s.notes||''
+    'آخر زيارة': s.last_visit_date||'', 'الإشارة': s.flag?s.flag.label:'', 'خارج متابعة القسم': isUrgentUntracked(s)?'نعم':'', 'ملاحظات': s.notes||''
   }));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(schoolsRows), 'المدارس');
 
@@ -5151,7 +5162,7 @@ function buildMonthlyReportHTML(monthStr){
   if(topActor) achievements.push({ic:'⭐', text:`"${topActor[0]}" الأكثر مساهمة هذا الشهر بـ ${topActor[1]} عملية`});
   if(achievements.length===0) achievements.push({ic:'📋', text:'لا توجد بيانات كافية بعد لرصد إنجازات هذا الشهر — استمري بحفظ لقطات دورية وتسجيل اسمك عند التعديل لإثراء التقارير القادمة.'});
 
-  const flaggedSchools = state.schools.filter(s=>s.flag);
+  const flaggedSchools = state.schools.filter(s=>s.flag && !isUrgentUntracked(s));
   const map = buildSupervisorMap();
   const scattered = map.filter(m=>{
     if(m.schools.length<2) return false;
@@ -5582,30 +5593,72 @@ document.getElementById('activityLogOverlay').addEventListener('click', e=>{ if(
 function getPriorityImprovementSchools(){
   return state.schools.filter(s=>s.flag && s.flag.label && s.flag.label.includes('عاجل'));
 }
+// مدرسة بإشارة "تدخل عاجل" لكن خارج متابعة القسم: تبقى محفوظة ومعلَّمة، وتُستثنى من العدّادات
+function isUrgentUntracked(s){
+  return !!(s && s.flag && s.flag.label && s.flag.label.includes('عاجل') && s.urgent_untracked===true);
+}
+function flagPillHtml(s, extraStyle){
+  if(!s || !s.flag) return '';
+  if(isUrgentUntracked(s)){
+    return `<div class="flag-pill flag-off"${extraStyle?` style="${extraStyle}"`:''} title="تدخل عاجل — خارج متابعة القسم"><span class="flag-dot"></span>${esc(s.flag.label)} · خارج متابعة القسم</div>`;
+  }
+  const c = resolveFlagColor(s.flag);
+  return `<div class="flag-pill" style="background:${c}22;color:${c};${extraStyle||''}"><span class="flag-dot" style="background:${c};"></span>${esc(s.flag.label)}</div>`;
+}
+let priorityFilter = 'all';
 function renderPriorityImprovementTable(){
   const q = document.getElementById('priorityImprovementSearch').value.trim();
-  let list = getPriorityImprovementSchools();
+  const all = getPriorityImprovementSchools();
+  const untrackedN = all.filter(isUrgentUntracked).length;
+  document.getElementById('piCntAll').textContent = all.length;
+  document.getElementById('piCntTracked').textContent = all.length - untrackedN;
+  document.getElementById('piCntUntracked').textContent = untrackedN;
+  document.querySelectorAll('#priorityChips .pi-chip').forEach(c=>c.classList.toggle('active', c.dataset.pf===priorityFilter));
+  let list = all;
+  if(priorityFilter==='tracked') list = list.filter(s=>!isUrgentUntracked(s));
+  if(priorityFilter==='untracked') list = list.filter(isUrgentUntracked);
   if(q) list = list.filter(s=>fuzzyFieldMatch([s.name, s.id, s.principal_name], q));
   const tbody = document.getElementById('priorityImprovementTbody');
   tbody.innerHTML = list.length ? list.map(s=>{
     const roles = getSchoolSupervisorRoles(s.id);
     const supText = roles.length ? roles.map(r=>esc(r.name)).join('، ') : '<span class="missing">لا يوجد</span>';
     const cityTxt = (s.city ? esc(s.city) : '<span class="missing">غير محدد</span>') + (s.neighborhood ? `<div class="smeta">${esc(s.neighborhood)}</div>` : '');
-    return `<tr class="sup-school-clickable" data-school-id="${esc(s.id)}" style="cursor:pointer;">
+    const off = isUrgentUntracked(s);
+    return `<tr class="sup-school-clickable${off?' pi-off':''}" data-school-id="${esc(s.id)}" style="cursor:pointer;">
       <td><b>${esc(s.name)}</b></td>
       <td>${cityTxt}</td>
       <td><span class="badge ${classBadgeClass(s.classification)}">${esc(s.classification)||'غير مصنف'}</span></td>
       <td>${s.principal_name ? `${esc(s.principal_name)}<div class="smeta">${esc(s.principal_phone||'')}</div>` : '<span class="missing">غير مسجّل</span>'}</td>
       <td>${supText}</td>
-      <td><span class="badge" style="background:#F7E7E3;color:var(--danger);">${esc(s.flag.label)}</span></td>
+      <td>${off ? flagPillHtml(s) : `<span class="badge" style="background:#F7E7E3;color:var(--danger);">${esc(s.flag.label)}</span>`}</td>
+      <td class="admin-only"><button type="button" class="btn btn-outline btn-sm pi-toggle" data-school-id="${esc(s.id)}" style="white-space:nowrap;">${off?'↩ إعادة للمتابعة':'إخراج من المتابعة'}</button></td>
     </tr>`;
-  }).join('') : `<tr><td colspan="6"><div class="scatter-empty" style="grid-column:auto;">لا توجد مدارس مضافة بعد</div></td></tr>`;
+  }).join('') : `<tr><td colspan="7"><div class="scatter-empty" style="grid-column:auto;">لا توجد مدارس في هذا العرض</div></td></tr>`;
   document.querySelectorAll('#priorityImprovementTbody .sup-school-clickable').forEach(el=>{
     el.addEventListener('click', ()=>{ closePriorityImprovementModal(); openSchoolProfile(el.dataset.schoolId); });
   });
+  document.querySelectorAll('#priorityImprovementTbody .pi-toggle').forEach(btn=>{
+    btn.addEventListener('click', async (e)=>{
+      e.stopPropagation();
+      const sc = state.schools.find(x=>String(x.id)===String(btn.dataset.schoolId));
+      if(!sc) return;
+      sc.urgent_untracked = !isUrgentUntracked(sc);
+      renderPriorityImprovementTable();
+      renderProactiveInsights();
+      applyFilters(false);
+      showToast(sc.urgent_untracked ? `أُخرجت "${sc.name}" من متابعة القسم (تبقى محفوظة ومعلَّمة)` : `أُعيدت "${sc.name}" إلى متابعة القسم`);
+      await persist(sc.id);
+      logActivity(sc.urgent_untracked ? 'إخراج مدرسة تدخل عاجل من المتابعة' : 'إعادة مدرسة تدخل عاجل للمتابعة', `"${sc.name}" (${sc.id})`);
+    });
+  });
 }
+document.getElementById('priorityChips').addEventListener('click', e=>{
+  const c = e.target.closest('.pi-chip'); if(!c) return;
+  priorityFilter = c.dataset.pf; renderPriorityImprovementTable();
+});
 function openPriorityImprovementModal(){
   document.getElementById('priorityImprovementSearch').value='';
+  priorityFilter='all';
   renderPriorityImprovementTable();
   document.getElementById('priorityImprovementOverlay').classList.add('open');
 }
@@ -6429,6 +6482,7 @@ async function runLinkFlagProgramMigration(){
     s.programs = Array.isArray(s.programs) ? s.programs : [];
     if(!s.programs.includes(programId)) s.programs.push(programId);
     s.flag = null;
+    s.urgent_untracked = false;
   });
   const changedIds = matches.map(s=>s.id);
   await persist(changedIds);
@@ -7362,10 +7416,12 @@ function renderProactiveInsights(){
   // she shouldn't have to type it perfectly. The list itself now lives in the
   // dedicated "🚩 مدارس أولى بالتحسين" modal; this just keeps the toolbar
   // button's count badge in sync.
-  const count = getPriorityImprovementSchools().length;
+  const allUrgent = getPriorityImprovementSchools();
+  const off = allUrgent.filter(isUrgentUntracked).length;
+  const count = allUrgent.length - off;
   const countBadge = document.getElementById('urgentCountBadge');
   if(countBadge){
-    countBadge.textContent = count ? `(${count})` : '';
+    countBadge.innerHTML = (count ? `(${count})` : '') + (off ? `<span class="urgent-extra" title="مدارس تدخل عاجل خارج متابعة القسم">+${off}</span>` : '');
   }
 }
 function renderDashboard(){
@@ -7406,9 +7462,9 @@ function renderDashboard(){
   barChart('cityChart', cityRows);
 
   const flagCounts = {};
-  state.schools.forEach(s=>{ const fl = s.flag ? s.flag.label : 'بدون إشارة'; flagCounts[fl]=(flagCounts[fl]||0)+1; });
+  state.schools.forEach(s=>{ const fl = s.flag ? (isUrgentUntracked(s) ? s.flag.label+' (خارج المتابعة)' : s.flag.label) : 'بدون إشارة'; flagCounts[fl]=(flagCounts[fl]||0)+1; });
   barChart('flagChart', Object.entries(flagCounts).sort((a,b)=>b[1]-a[1]).map(([label,value])=>({label,value})),
-    label=> label==='بدون إشارة' ? '#C9D2CC' : resolveFlagColor({label}));
+    label=> label==='بدون إشارة' ? '#C9D2CC' : label.endsWith('(خارج المتابعة)') ? '#B8C2BC' : resolveFlagColor({label}));
 
   const withCity = state.schools.filter(s=>s.city).length;
   const withPrincipal = state.schools.filter(s=>s.principal_name).length;
@@ -7443,7 +7499,8 @@ function renderDashboard(){
   const coveragePct = linkedTotal ? (withSchools/linkedTotal)*100 : 0;
   const uncoveredSchools = state.schools.filter(s=>!schoolHasAnySupervisor(s)).length;
   const uncoveredPct = (uncoveredSchools/total)*100;
-  const urgentCount = state.schools.filter(s=>s.flag && /عاجل/.test(s.flag.label||'')).length;
+  const urgentCount = state.schools.filter(s=>s.flag && /عاجل/.test(s.flag.label||'') && !isUrgentUntracked(s)).length;
+  const urgentOffCount = state.schools.filter(isUrgentUntracked).length;
   const snaps = state.snapshots||[];
   const prevSnap = snaps.length ? snaps[snaps.length-1] : null;
   const kpiTrend = (curVal, prevVal, higherIsBetter=true)=>{
@@ -7479,7 +7536,7 @@ function renderDashboard(){
     </div>
     <div class="kpi-card alt5">
       <div class="kpi-icon">${kpiIconStar()}</div>
-      <b>${urgentCount.toLocaleString('en-US')}</b><span>مدارس بإشارة تدخل عاجل</span>
+      <b>${urgentCount.toLocaleString('en-US')}</b><span>مدارس بإشارة تدخل عاجل${urgentOffCount?` <small style="opacity:.8;">(+${urgentOffCount} خارج المتابعة)</small>`:''}</span>
       ${prevSnap?kpiTrend(urgentCount, prevSnap.flagged, false):''}
     </div>`;
 
